@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>HRV Boost</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --card: #141929;
+    --accent: #4facfe;
+    --accent2: #00f2fe;
+    --text: #e8ecf4;
+    --muted: #6b7394;
+    --success: #34d399;
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    padding: 16px;
+    padding-bottom: 100px;
+  }
+
+  .header {
+    text-align: center;
+    padding: 12px 0 20px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .header .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* HRV Status Card */
+  .status-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .status-ring {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) 0deg, var(--accent2) 120deg, transparent 120deg);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .status-ring-inner {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--card);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700;
+  }
+  .status-info h3 { font-size: 15px; font-weight: 600; }
+  .status-info p { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab {
+    flex-shrink: 0;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    background: var(--card);
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .tab.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+  }
+
+  /* Panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Breathing Exercise */
+  .breathe-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+  }
+
+  .breathe-circle-wrap {
+    position: relative;
+    width: 200px; height: 200px;
+    margin-bottom: 24px;
+  }
+  .breathe-circle {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(79,172,254,0.15) 0%, transparent 70%);
+    border: 3px solid rgba(79,172,254,0.3);
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    transition: transform 0.3s ease, border-color 0.3s;
+  }
+  .breathe-circle.inhale {
+    animation: expand ease-in forwards;
+    border-color: var(--accent);
+  }
+  .breathe-circle.exhale {
+    animation: shrink ease-out forwards;
+    border-color: var(--accent2);
+  }
+  .breathe-circle.hold {
+    border-color: var(--success);
+  }
+
+  @keyframes expand {
+    from { transform: scale(0.7); }
+    to { transform: scale(1.0); }
+  }
+  @keyframes shrink {
+    from { transform: scale(1.0); }
+    to { transform: scale(0.7); }
+  }
+
+  .breathe-label {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .breathe-timer {
+    font-size: 36px;
+    font-weight: 200;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .session-timer {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Exercise Picker */
+  .exercise-picker {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .exercise-btn {
+    padding: 8px 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1.5px solid rgba(79,172,254,0.2);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .exercise-btn.active {
+    border-color: var(--accent);
+    background: rgba(79,172,254,0.1);
+  }
+  .exercise-btn .ex-sub {
+    display: block;
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 400;
+    margin-top: 2px;
+  }
+
+  /* Duration picker */
+  .duration-picker {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    justify-content: center;
+  }
+  .dur-btn {
+    width: 48px; height: 32px;
+    border-radius: 8px;
+    border: 1.5px solid rgba(79,172,254,0.2);
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .dur-btn.active {
+    border-color: var(--accent);
+    color: var(--text);
+    background: rgba(79,172,254,0.1);
+  }
+
+  /* Big start button */
+  .start-btn {
+    width: 100%;
+    max-width: 280px;
+    padding: 14px;
+    border-radius: 14px;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    transition: opacity 0.2s;
+  }
+  .start-btn:active { opacity: 0.8; }
+  .start-btn.stop {
+    background: linear-gradient(135deg, #f87171, #fb923c);
+  }
+
+  /* Tips / Habits */
+  .tip-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 10px;
+  }
+  .tip-card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tip-card p {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .tip-icon {
+    font-size: 18px;
+  }
+
+  /* Log */
+  .log-entry {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .log-entry .le-date { font-size: 13px; font-weight: 600; }
+  .log-entry .le-detail { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .log-entry .le-dur {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .log-empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 40px 0;
+  }
+
+  /* Streak */
+  .streak-bar {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .streak-dot {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: var(--card);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .streak-dot.done {
+    background: rgba(79,172,254,0.15);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .streak-dot.today {
+    border: 1.5px solid var(--accent);
+  }
+
+  .streak-label {
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* Session complete overlay */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10,14,26,0.95);
+    z-index: 100;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    text-align: center;
+  }
+  .overlay.show { display: flex; }
+  .overlay .done-icon { font-size: 48px; margin-bottom: 16px; }
+  .overlay h2 { font-size: 22px; margin-bottom: 8px; }
+  .overlay p { color: var(--muted); font-size: 14px; margin-bottom: 24px; line-height: 1.5; }
+  .overlay button {
+    padding: 12px 32px;
+    border-radius: 12px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>HRV Boost</h1>
+  <div class="subtitle">Breathe better. Recover faster.</div>
+</div>
+
+<div class="status-card">
+  <div class="status-ring"><div class="status-ring-inner" id="streakNum">0</div></div>
+  <div class="status-info">
+    <h3>Your baseline: 35-50 ms</h3>
+    <p>Below average for your age. Breathing exercises can improve HRV by 10-20 ms in 4-8 weeks.</p>
+  </div>
+</div>
+
+<!-- Streak -->
+<div class="streak-bar" id="streakBar"></div>
+<div class="streak-label" id="streakLabel">Complete a session today to start your streak</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showPanel('breathe')">Breathe</button>
+  <button class="tab" onclick="showPanel('habits')">Habits</button>
+  <button class="tab" onclick="showPanel('log')">Log</button>
+</div>
+
+<!-- BREATHE PANEL -->
+<div class="panel active" id="panel-breathe">
+  <div class="exercise-picker">
+    <button class="exercise-btn active" data-ex="resonance" onclick="pickExercise(this)">
+      Resonance
+      <span class="ex-sub">5.5s in / 5.5s out</span>
+    </button>
+    <button class="exercise-btn" data-ex="box" onclick="pickExercise(this)">
+      Box
+      <span class="ex-sub">4-4-4-4</span>
+    </button>
+    <button class="exercise-btn" data-ex="478" onclick="pickExercise(this)">
+      4-7-8
+      <span class="ex-sub">Calm &amp; sleep</span>
+    </button>
+    <button class="exercise-btn" data-ex="coherence" onclick="pickExercise(this)">
+      Coherence
+      <span class="ex-sub">5s in / 5s out</span>
+    </button>
+  </div>
+
+  <div class="duration-picker">
+    <button class="dur-btn" data-dur="120" onclick="pickDuration(this)">2m</button>
+    <button class="dur-btn active" data-dur="300" onclick="pickDuration(this)">5m</button>
+    <button class="dur-btn" data-dur="600" onclick="pickDuration(this)">10m</button>
+    <button class="dur-btn" data-dur="900" onclick="pickDuration(this)">15m</button>
+  </div>
+
+  <div class="breathe-container">
+    <div class="breathe-circle-wrap">
+      <div class="breathe-circle" id="bCircle">
+        <div class="breathe-label" id="bLabel">Ready</div>
+        <div class="breathe-timer" id="bTimer"></div>
+      </div>
+    </div>
+    <div class="session-timer" id="sessionTimer">5:00</div>
+    <button class="start-btn" id="startBtn" onclick="toggleSession()">Start Session</button>
+  </div>
+</div>
+
+<!-- HABITS PANEL -->
+<div class="panel" id="panel-habits">
+  <div class="tip-card">
+    <h3><span class="tip-icon">&#x1F4A8;</span> Resonance Breathing</h3>
+    <p>Breathe at ~5.5 breaths/min (5.5s in, 5.5s out). This hits your baroreflex resonance frequency and maximally stimulates your vagus nerve. Do 10-20 min daily. This alone can add 10-15 ms to your HRV in weeks.</p>
+  </div>
+  <div class="tip-card">
+    <h3><span class="tip-icon">&#x1F9CA;</span> Cold Exposure</h3>
+    <p>End your shower with 1-2 min of cold water. Cold activates the vagus nerve and trains your autonomic nervous system. Start at 30s if it's hard. Aim for face/neck/chest exposure.</p>
+  </div>
+  <div class="tip-card">
+    <h3><span class="tip-icon">&#x1F634;</span> Sleep Optimization</h3>
+    <p>HRV is mostly built during sleep. No food 3h before bed. No screens 1h before. Room at 18-19C. Consistent wake time matters more than bedtime. Aim for 7-8h.</p>
+  </div>
+  <div class="tip-card">
+    <h3><span class="tip-icon">&#x1F3CB;</span> Zone 2 Cardio</h3>
+    <p>150 min/week of low-intensity cardio (walking, easy cycling, swimming where you can hold a conversation). This builds your aerobic base and parasympathetic tone. Don't overdo high-intensity — it temporarily tanks HRV.</p>
+  </div>
+  <div class="tip-card">
+    <h3><span class="tip-icon">&#x1F377;</span> Cut Alcohol</h3>
+    <p>Even 1-2 drinks crush HRV for 24-48 hours. If you drink, notice the pattern on your tracker. This is often the single biggest lever people miss.</p>
+  </div>
+  <div class="tip-card">
+    <h3><span class="tip-icon">&#x2615;</span> Caffeine Timing</h3>
+    <p>No caffeine after 1 PM. Morning coffee is fine but late caffeine disrupts deep sleep stages where HRV recovery happens. Half-life is 5-6 hours.</p>
+  </div>
+  <div class="tip-card">
+    <h3><span class="tip-icon">&#x1F9D8;</span> Vagus Nerve Hacks</h3>
+    <p>Gargling vigorously, humming/chanting, and slow exhales all stimulate the vagus nerve directly. Try humming for 5 min or gargling water hard enough to make your eyes tear up.</p>
+  </div>
+</div>
+
+<!-- LOG PANEL -->
+<div class="panel" id="panel-log">
+  <div id="logList"><div class="log-empty">No sessions yet. Start breathing!</div></div>
+</div>
+
+<!-- Completion overlay -->
+<div class="overlay" id="overlay">
+  <div class="done-icon">&#x2705;</div>
+  <h2>Session Complete</h2>
+  <p id="overlayText">Great work!</p>
+  <button onclick="closeOverlay()">Done</button>
+</div>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  try { tg.disableVerticalSwipes(); } catch(e) {}
+}
+
+const exercises = {
+  resonance: { name: 'Resonance', phases: [{label:'Inhale',dur:5.5},{label:'Exhale',dur:5.5}] },
+  box:       { name: 'Box Breathing', phases: [{label:'Inhale',dur:4},{label:'Hold',dur:4},{label:'Exhale',dur:4},{label:'Hold',dur:4}] },
+  '478':     { name: '4-7-8', phases: [{label:'Inhale',dur:4},{label:'Hold',dur:7},{label:'Exhale',dur:8}] },
+  coherence: { name: 'Coherence', phases: [{label:'Inhale',dur:5},{label:'Exhale',dur:5}] }
+};
+
+let currentEx = 'resonance';
+let sessionDur = 300;
+let running = false;
+let sessionInterval = null;
+let phaseTimeout = null;
+let remainingSec = 0;
+let sessionStart = 0;
+
+const bCircle = document.getElementById('bCircle');
+const bLabel = document.getElementById('bLabel');
+const bTimer = document.getElementById('bTimer');
+const sessionTimerEl = document.getElementById('sessionTimer');
+const startBtn = document.getElementById('startBtn');
+
+function pickExercise(btn) {
+  document.querySelectorAll('.exercise-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentEx = btn.dataset.ex;
+  if (running) stopSession();
+}
+
+function pickDuration(btn) {
+  document.querySelectorAll('.dur-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  sessionDur = parseInt(btn.dataset.dur);
+  if (!running) {
+    remainingSec = sessionDur;
+    sessionTimerEl.textContent = fmtTime(remainingSec);
+  }
+}
+
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
+}
+
+function toggleSession() {
+  if (running) stopSession(); else startSession();
+}
+
+function startSession() {
+  running = true;
+  remainingSec = sessionDur;
+  sessionStart = Date.now();
+  startBtn.textContent = 'Stop';
+  startBtn.classList.add('stop');
+  sessionTimerEl.textContent = fmtTime(remainingSec);
+  runBreathCycle();
+  sessionInterval = setInterval(() => {
+    const elapsed = (Date.now() - sessionStart) / 1000;
+    remainingSec = Math.max(0, sessionDur - elapsed);
+    sessionTimerEl.textContent = fmtTime(remainingSec);
+    if (remainingSec <= 0) completeSession();
+  }, 250);
+}
+
+function stopSession() {
+  running = false;
+  clearInterval(sessionInterval);
+  clearTimeout(phaseTimeout);
+  bCircle.className = 'breathe-circle';
+  bCircle.style.transform = '';
+  bLabel.textContent = 'Ready';
+  bTimer.textContent = '';
+  startBtn.textContent = 'Start Session';
+  startBtn.classList.remove('stop');
+  sessionTimerEl.textContent = fmtTime(sessionDur);
+}
+
+function runBreathCycle() {
+  if (!running) return;
+  const ex = exercises[currentEx];
+  let phaseIdx = 0;
+
+  function nextPhase() {
+    if (!running) return;
+    const phase = ex.phases[phaseIdx];
+    bLabel.textContent = phase.label;
+    bCircle.className = 'breathe-circle';
+
+    if (phase.label === 'Inhale') {
+      bCircle.classList.add('inhale');
+      bCircle.style.animationDuration = phase.dur + 's';
+    } else if (phase.label === 'Exhale') {
+      bCircle.classList.add('exhale');
+      bCircle.style.animationDuration = phase.dur + 's';
+    } else {
+      bCircle.classList.add('hold');
+    }
+
+    // Countdown
+    let t = Math.ceil(phase.dur);
+    bTimer.textContent = t;
+    const countInterval = setInterval(() => {
+      t--;
+      if (t > 0) bTimer.textContent = t;
+      else { bTimer.textContent = ''; clearInterval(countInterval); }
+    }, 1000);
+
+    // Vibrate on phase change
+    if (navigator.vibrate) navigator.vibrate(30);
+
+    phaseTimeout = setTimeout(() => {
+      clearInterval(countInterval);
+      phaseIdx = (phaseIdx + 1) % ex.phases.length;
+      nextPhase();
+    }, phase.dur * 1000);
+  }
+  nextPhase();
+}
+
+function completeSession() {
+  stopSession();
+  const entry = {
+    date: new Date().toISOString(),
+    exercise: exercises[currentEx].name,
+    duration: sessionDur
+  };
+  const log = getLog();
+  log.unshift(entry);
+  localStorage.setItem('hrv_log', JSON.stringify(log));
+
+  const mins = Math.round(sessionDur / 60);
+  document.getElementById('overlayText').textContent =
+    `${exercises[currentEx].name} for ${mins} min. Keep this up daily for best results.`;
+  document.getElementById('overlay').classList.add('show');
+
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+
+  renderLog();
+  renderStreak();
+}
+
+function closeOverlay() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+function getLog() {
+  try { return JSON.parse(localStorage.getItem('hrv_log')) || []; }
+  catch { return []; }
+}
+
+function renderLog() {
+  const log = getLog();
+  const el = document.getElementById('logList');
+  if (!log.length) { el.innerHTML = '<div class="log-empty">No sessions yet. Start breathing!</div>'; return; }
+  el.innerHTML = log.slice(0, 30).map(e => {
+    const d = new Date(e.date);
+    const dateStr = d.toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+    const timeStr = d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    return `<div class="log-entry">
+      <div><div class="le-date">${dateStr} ${timeStr}</div><div class="le-detail">${e.exercise}</div></div>
+      <div class="le-dur">${Math.round(e.duration/60)}m</div>
+    </div>`;
+  }).join('');
+}
+
+function renderStreak() {
+  const log = getLog();
+  const bar = document.getElementById('streakBar');
+  const label = document.getElementById('streakLabel');
+  const today = new Date();
+  const days = ['S','M','T','W','T','F','S'];
+  let streak = 0;
+  let html = '';
+
+  // Build last 7 days
+  const doneDays = new Set();
+  log.forEach(e => {
+    const d = new Date(e.date);
+    doneDays.add(d.toDateString());
+  });
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const done = doneDays.has(d.toDateString());
+    const isToday = i === 0;
+    html += `<div class="streak-dot${done ? ' done' : ''}${isToday ? ' today' : ''}">${days[d.getDay()]}</div>`;
+  }
+  bar.innerHTML = html;
+
+  // Count streak
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    if (doneDays.has(d.toDateString())) streak++;
+    else if (i > 0) break; // allow today to be not done yet
+    else break;
+  }
+
+  document.getElementById('streakNum').textContent = streak;
+  if (streak === 0) label.textContent = 'Complete a session today to start your streak';
+  else if (streak === 1) label.textContent = 'Day 1 — consistency is everything';
+  else label.textContent = `${streak}-day streak. Keep going!`;
+}
+
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Init
+remainingSec = sessionDur;
+sessionTimerEl.textContent = fmtTime(remainingSec);
+renderLog();
+renderStreak();
+</script>
+</body>
+</html>
